@@ -14,7 +14,7 @@ The Huzzah ESP8266 was chosen as it is a 5VDC device and does not require any le
 4. Packages
 	(sudo apt install apache2 php7.3 libapache2-mod-php7.3 php7.3-cli php7.3-fpm php7.3-json php7.3-zip php7.3-mbstring php7.3-curl php7.3-xml php7.3-json)
 
-# How to attach the Adafruit Huzzah ESP8266 to the Avanta V1 P3
+# How to attach the Adafruit (ESP8266) to the Avanta V1 P3
 Before you start, you will need a external 5v power supply with the Avanta since it can't provide enough power.
 Using the VDC (pin4) to power your Adafruit will boot loop your boiler since it can't provide enough power.
 
