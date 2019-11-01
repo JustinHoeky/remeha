@@ -30,13 +30,18 @@ $ESPPort = $ini_array['ESPPort'];
 $retries = $ini_array['retries'];
 $nanosleeptime =  $ini_array['nanosleeptime'];
 $echo_flag = "1";
-$newline = "<br />";
+$newline = $ini_array['newline'];
+	if ($newline == "terminal"){$newline = "\n";}
+	elseif ($newline == "windows"){$newline = "\r\n";} 
+	else {$newline = "<br />";}
 $phpver = phpversion();
 
 $remeha_counter1 = hex2bin($ini_array['remeha_counter1']);
 $remeha_counter2 = hex2bin($ini_array['remeha_counter2']);
 $remeha_counter3 = hex2bin($ini_array['remeha_counter3']);
 $remeha_counter4 = hex2bin($ini_array['remeha_counter4']);
+$remeha_sample_req_length = $ini_array['remeha_sample_req_length'];
+$remeha_counter_length = $ini_array['remeha_counter_length'];
 
 $fp = connect_to_esp($ESPIPAddress, $ESPPort, $retries, $newline);
 if (!$fp) 
@@ -51,68 +56,111 @@ else
 	conditional_echo("PHP version: $phpver$newline", $echo_flag);
 	conditional_echo("Connected to $ESPIPAddress:$ESPPort$newline", $echo_flag);
 	conditional_echo("Sending request...$newline", $echo_flag);
-	fwrite($fp,$remeha_counter1, 10);
+	fwrite($fp,$remeha_counter1, $remeha_sample_req_length);
 	$data_counter1 = "";
-	$data_counter1 = bin2hex(fread($fp, 52));
+	$data_counter1 = bin2hex(fread($fp, $remeha_counter_length));
 	$data_counter1U = strtoupper($data_counter1);
 	conditional_echo("Counter Data-1 read: $data_counter1U$newline", $echo_flag);
 	usleep($nanosleeptime);
-
-	fwrite($fp,$remeha_counter2, 10);
-	$data_counter2 = "";
-	$data_counter2 = bin2hex(fread($fp, 52));
-	$data_counter2U = strtoupper($data_counter2);
-	conditional_echo("Counter Data-2 read: $data_counter2U$newline", $echo_flag);
-	usleep($nanosleeptime);
-
-	fwrite($fp,$remeha_counter3, 10);
-	$data_counter3="";
-	$data_counter3=bin2hex(fread($fp, 52));
-	$data_counter3U = strtoupper($data_counter3);
-	conditional_echo("Counter Data-3 read: $data_counter3U$newline", $echo_flag);
-	usleep($nanosleeptime);
-
-	fwrite($fp,$remeha_counter4, 10);
-	$data_counter4="";
-	$data_counter4=bin2hex(fread($fp, 52));
-	$data_counter4U = strtoupper($data_counter4);
-	conditional_echo("Counter Data-4 read: $data_counter4U$newline", $echo_flag);
-	$output = counter_data_dump($data_counter1, $data_counter2, $data_counter3, $data_counter4, $echo_flag, $newline);
+	
+	if (!($remeha_counter2 == "")) 
+		{
+		fwrite($fp,$remeha_counter2, $remeha_sample_req_length);
+		$data_counter2 = "";
+		$data_counter2 = bin2hex(fread($fp, $remeha_counter_length));
+		$data_counter2U = strtoupper($data_counter2);
+		conditional_echo("Counter Data-2 read: $data_counter2U$newline", $echo_flag);
+		usleep($nanosleeptime);
+		}
+	if (!($remeha_counter3 == "")) 
+		{
+		fwrite($fp,$remeha_counter3, $remeha_sample_req_length);
+		$data_counter3="";
+		$data_counter3=bin2hex(fread($fp, $remeha_counter_length));
+		$data_counter3U = strtoupper($data_counter3);
+		conditional_echo("Counter Data-3 read: $data_counter3U$newline", $echo_flag);
+		usleep($nanosleeptime);
+		}
+	if (!($remeha_counter4 == "")) 
+		{
+		fwrite($fp,$remeha_counter4, $remeha_sample_req_length);
+		$data_counter4="";
+		$data_counter4=bin2hex(fread($fp, $remeha_counter_length));
+		$data_counter4U = strtoupper($data_counter4);
+		conditional_echo("Counter Data-4 read: $data_counter4U$newline", $echo_flag);
+		}	
+	$output = counter_data_dump($data_counter1, $data_counter2, $data_counter3, $data_counter4, $echo_flag, $newline, $ini_array);
 	fclose($fp);
+
 	}
 
 // Time to 'Work the COUNTER Data'
 //
-function counter_data_dump($data_counter1, $data_counter2, $data_counter3, $data_counter4, $echo_flag, $newline)
+function counter_data_dump($data_counter1, $data_counter2, $data_counter3, $data_counter4, $echo_flag, $newline, $ini_array)
 {
-
+	$remeha_counter_length = $ini_array['remeha_counter_length'];
+	$remeha_crc  = $ini_array['remeha_crc'];
+	$remeha_header = $ini_array['remeha_header'];
+	$counter_offset = $ini_array['counter_offset'];
+	
 	// Manipulate data & Do a CRC Check	
 	$decode_cnt1 = str_split($data_counter1, 2);
-	$hexstr_cnt1 = str_split($data_counter1, 52);
-	$hexstrPayload_cnt1 = substr($data_counter1, 2, 44);
-	$hexstrCRC_cnt1 = substr($data_counter1, 46, 4);
-	$crcCalc_cnt1 = crc16_modbus($hexstrPayload_cnt1);	
-
+	$hexstr_cnt1 = str_split($data_counter1, $remeha_counter_length);  #length is 52 for calenta and 48 for avanta
+	$hexstrPayload_cnt1 = substr($data_counter1, 2, $remeha_counter_length - $remeha_crc - 4);
+	$hexstrCRC_cnt1 = substr($data_counter1, $remeha_counter_length - $remeha_crc - 2, $remeha_crc);
+	
+	if ($remeha_crc == 2) {
+		$crcCalc_cnt1 = checksum8xor($hexstrPayload_cnt1);	
+	}
+	else {
+		$crcCalc_cnt1 = crc16_modbus($hexstrPayload_cnt1);
+	}
+	
 	$decode_cnt2 = str_split($data_counter2, 2);
-	$hexstr_cnt2 = str_split($data_counter2, 52);
-	$hexstrPayload_cnt2 = substr($data_counter2, 2, 44);
-	$hexstrCRC_cnt2 = substr($data_counter2, 46, 4);
-	$crcCalc_cnt2 = crc16_modbus($hexstrPayload_cnt2);
-
+	$hexstr_cnt2 = str_split($data_counter2, $remeha_counter_length);
+	$hexstrPayload_cnt2 = substr($data_counter2, 2, $remeha_counter_length - $remeha_crc - 4);
+	$hexstrCRC_cnt2 = substr($data_counter2, $remeha_counter_length - $remeha_crc - 2, $remeha_crc);
+	
+	if ($remeha_crc == 2) {
+		$crcCalc_cnt2 = checksum8xor($hexstrPayload_cnt2);	
+	}
+	else {
+		$crcCalc_cnt2 = crc16_modbus($hexstrPayload_cnt2);
+	}
+	if ($hexstrCRC_cnt2 == "") {$hexstrCRC_cnt2 = "0";}
+	
 	$decode_cnt3 = str_split($data_counter3, 2);
-	$hexstr_cnt3 = str_split($data_counter3, 52);
-	$hexstrPayload_cnt3 = substr($data_counter3, 2, 44);
-	$hexstrCRC_cnt3 = substr($data_counter3, 46, 4);
-	$crcCalc_cnt3 = crc16_modbus($hexstrPayload_cnt3);	
+	$hexstr_cnt3 = str_split($data_counter3, $remeha_counter_length);
+	$hexstrPayload_cnt3 = substr($data_counter3, 2, $remeha_counter_length - $remeha_crc - 4);
+	$hexstrCRC_cnt3 = substr($data_counter3, $remeha_counter_length - $remeha_crc - 2, $remeha_crc);
+	
+	if ($remeha_crc == 2) {
+		$crcCalc_cnt3 = checksum8xor($hexstrPayload_cnt3);	
+	}
+	else {
+		$crcCalc_cnt3 = crc16_modbus($hexstrPayload_cnt3);
+	}
+	if ($hexstrCRC_cnt3 == "") {$hexstrCRC_cnt3 = "0";}
 	
 	$decode_cnt4 = str_split($data_counter4, 2);
-	$hexstr_cnt4 = str_split($data_counter4, 52);
-	$hexstrPayload_cnt4 = substr($data_counter4, 2, 44);
-	$hexstrCRC_cnt4 = substr($data_counter4, 46, 4);
-	$crcCalc_cnt4 = crc16_modbus($hexstrPayload_cnt4);	
-
+	$hexstr_cnt4 = str_split($data_counter4, $remeha_counter_length);
+	$hexstrPayload_cnt4 = substr($data_counter4, 2, $remeha_counter_length - $remeha_crc - 4);
+	$hexstrCRC_cnt4 = substr($data_counter4, $remeha_counter_length - $remeha_crc - 2, $remeha_crc);
+	
+	if ($remeha_crc == 2) {
+		$crcCalc_cnt4 = checksum8xor($hexstrPayload_cnt4);	
+	}
+	else {
+		$crcCalc_cnt4 = crc16_modbus($hexstrPayload_cnt4);
+	}
+	
+	if ($hexstrCRC_cnt4 == "") {$hexstrCRC_cnt4 = "0";}
+	
 	// Concatenate Counter data to work with
-	$concat_counter = substr($hexstrPayload_cnt1, 12, 32).substr($hexstrPayload_cnt2, 12, 32).substr($hexstrPayload_cnt3, 12, 32).substr($hexstrPayload_cnt4, 12, 32);
+	$concat_counter = substr($hexstrPayload_cnt1, 2*($remeha_header + $counter_offset), 32-$counter_offset).substr($hexstrPayload_cnt2, 2*$remeha_header, 32).substr($hexstrPayload_cnt3, 2*$remeha_header, 32).substr($hexstrPayload_cnt4, 2*$remeha_header, 32);
+	conditional_echo("Counter Data total read: $concat_counter$newline", $echo_flag);
+	
+	
 	$decode_counter = str_split($concat_counter, 2);		
 
 	// Write the contents to the file

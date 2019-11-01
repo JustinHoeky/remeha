@@ -29,10 +29,17 @@ $ESPIPAddress = $ini_array['ESPIPAddress'];
 $ESPPort = $ini_array['ESPPort'];
 $retries = $ini_array['retries'];
 $echo_flag = "1";
-$newline = "<br />";
+$newline = $ini_array['newline'];
+	if ($newline == "terminal"){$newline = "\n";}
+	elseif ($newline == "windows"){$newline = "\r\n";} 
+	else {$newline = "<br />";}
 $phpver = phpversion();
 
 $remeha_sample = hex2bin($ini_array['remeha_sample']);
+$remeha_sample_length = $ini_array['remeha_sample_length'];
+$remeha_sample_req_length = $ini_array['remeha_sample_req_length'];
+
+
 
 $fp = connect_to_esp($ESPIPAddress, $ESPPort, $retries, $newline);
 if (!$fp) 
@@ -47,26 +54,46 @@ else
 	conditional_echo("PHP version: $phpver$newline", $echo_flag);
 	conditional_echo("Connected to $ESPIPAddress:$ESPPort$newline", $echo_flag);
 	conditional_echo("Sending request...$newline", $echo_flag);
-	fwrite($fp,$remeha_sample, 10);
+	fwrite($fp,$remeha_sample, $remeha_sample_req_length);  #10
 	$data_sample = "";	
-	$data_sample = bin2hex(fread($fp, 148));
+	$data_sample = bin2hex(fread($fp, $remeha_sample_length)); #148
 	$data_sampleU = strtoupper($data_sample);
 	conditional_echo("Sample Data read: $data_sampleU$newline", $echo_flag);
-	$output = sample_data_dump($data_sample, $echo_flag, $newline);
+	$output = sample_data_dump($data_sample, $echo_flag, $newline, $ini_array);
 	fclose($fp);
 	}
 
 // Time to 'Work the SAMPLE Data'
 //
-function sample_data_dump($data_sample, $echo_flag, $newline)
+function sample_data_dump($data_sample, $echo_flag, $newline, $ini_array)
 	{
-	// Manipulate data & Do a CRC Check	
-	$decode = str_split($data_sample, 2);
-	$hexstr = str_split($data_sample, 148);
-	$hexstrPayload = substr($data_sample, 2, 140);
-	$hexstrCRC = substr($data_sample, 142, 4);
-	$crcCalc = crc16_modbus($hexstrPayload);	
+	$remeha_sample_length = $ini_array['remeha_sample_length'];
+	$remeha_sample_req_length = $ini_array['remeha_sample_req_length'];
+	$remeha_header = $ini_array['remeha_header'];
+	$remeha_crc  = $ini_array['remeha_crc'];
 
+	// Manipulate data & Do a CRC Check	
+	conditional_echo("Header: $remeha_header$newline", $echo_flag);
+	
+	if ($remeha_header == 5) {
+		$decode = str_split("XX" . $data_sample, 2); //header of 5 means that one bytes needs to be added, so that mapping stays the same
+	}
+	else 
+	{
+		$decode = str_split($data_sample, 2);  //normal header is 6
+	}
+	$hexstr = str_split($data_sample, $remeha_sample_length); #128
+	$hexstrPayload = substr($data_sample, 2, $remeha_sample_length - $remeha_crc - 4); #  128-2-4=122 -> 148-4-4
+	$hexstrCRC = substr($data_sample, $remeha_sample_length - $remeha_crc - 2, $remeha_crc); #142 = 148 - 2 - crc , 124 = 128 - crc - 2 
+
+	if ($remeha_crc == 2) {
+		$crcCalc = checksum8xor($hexstrPayload);	
+	}
+	else {
+		$crcCalc = crc16_modbus($hexstrPayload);
+	}
+	
+	
 	// Write the contents to the file
 	$ini_array = parse_ini_file("remeha.ini");
 	$log_data = $ini_array['log_data'];
@@ -146,7 +173,7 @@ function sample_data_dump($data_sample, $echo_flag, $newline)
 	$lockout = $decode["48"];
 	$blocking = $decode["49"];
 	$substate = $decode["50"];  
-	$pressure = $decode["56"];
+/*	$pressure = $decode["56"];
 	$hruactivebits = $decode["57"];
 	$hruactivebitsbin = sprintf("%08d", base_convert($hruactivebits, 16, 2));
 	$controltemperature = $decode["59"];
@@ -156,7 +183,7 @@ function sample_data_dump($data_sample, $echo_flag, $newline)
 	$solartemperature = $decode["64"];
 	$solartemperature .= $decode["63"];
 	// END Sample Data Info
-
+*/
 	//Convert Hex2Dec
   	$flowtemperature = number_format(hexdecs($flowtemperature)/100, 2);
 	$returntemperature = number_format(hexdecs($returntemperature)/100, 2);
@@ -179,13 +206,13 @@ function sample_data_dump($data_sample, $echo_flag, $newline)
 	$pumppower = hexdec($pumppower);
 	$requiredoutput = hexdec($requiredoutput);
 	$actualpower = hexdec($actualpower);
-	$pressure = number_format(hexdec($pressure)/10, 1);
-	$controltemperature = number_format(hexdecs($controltemperature)/100, 2);
+	/*$pressure = number_format(hexdec($pressure)/10, 1);
+	/*$controltemperature = number_format(hexdecs($controltemperature)/100, 2);
 	$dhwflowrate = number_format(hexdecs($dhwflowrate)/100, 2);
 	if ($solartemperature == 8000) {$solartemperature = "Open";}
 	else {$solartemperature = number_format(hexdecs($solartemperature)/100, 2);}
 	// END Convert Hex2Dec
-
+*/
 	// Translate 'bits' to useful stuff
 	// Modulating Controller Connected
 	$heatrequestBIT0 = (hexdec($heatrequestbits) >> 0) & 1;

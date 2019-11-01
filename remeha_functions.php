@@ -126,6 +126,27 @@ function crc16_modbus($msg)
 	return sprintf('%04x', $crc_modbus);
 }
 
+
+
+function checksum8xor($msg)
+{
+	//echo("Data checksum: $msg \n");
+	$length = strlen($msg);
+	$checksum = 0;
+	$parts = str_split($msg, 2);
+	for ($i = 0; $i < $length/2 ; $i++) {
+		$part = $parts[$i];
+		//echo($part);
+		$nr = hexdec($part);
+		$checksum ^= $nr;
+	}
+	$checksum &= 0xff;
+	
+	echo "Got checksum: ", dechex($checksum), "\n";
+	return sprintf('%02x', $checksum);
+}
+
+
 // Function to convert HEX to ASCII for Device ID, Serial, etc.
 // usage (e.g. $hexstr = "43616c656e7461202020202020202020";) whic is "Calenta"
 function hex2str($hex)
