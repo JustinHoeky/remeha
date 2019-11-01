@@ -5,7 +5,7 @@ The PHP code uses an Adafruit Huzzah ESP8266 to connect to and read data from a 
 The Huzzah ESP8266 was chosen as it is a 5VDC device and does not require any level shifter or additional circuits to deal with the higher voltage. 
 
 # What do you need
-1. Adafruit Huzzah ESP8266 flashed with the ESP-Link firmware/software	
+1. Adafruit Huzzah ESP8266 flashed with the ESP-Link firmware/software
 	(https://learn.adafruit.com/adafruit-huzzah-esp8266-breakout/overview)
 2. Domoticz
 	(https://www.domoticz.com/)
